@@ -2,10 +2,12 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sudoku Master</title>
     <link rel="manifest" href="#" id="manifest-placeholder">
     <meta name="theme-color" content="#4a5568">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         :root {
             --primary-color: #4a5568;
@@ -119,7 +121,7 @@
         }
         
         .number-wheel {
-            position: absolute;
+            position: fixed;
             width: 200px;
             height: 200px;
             background-color: rgba(255, 255, 255, 0.95);
@@ -131,6 +133,7 @@
             z-index: 100;
             transform: translate(-50%, -50%);
             user-select: none;
+            touch-action: none;
         }
         
         .wheel-number {
@@ -397,6 +400,7 @@
         let startTime = null;
         let isNotesMode = false;
         let isMouseDown = false;
+        let isTouchActive = false;
         
         // Funzioni di utilità
         function getBoxIndex(row, col) {
@@ -586,16 +590,23 @@
                         }
                     }
                     
-                    // Eventi per il click
+                    // Eventi per il click con mouse
                     cell.addEventListener('click', () => selectCell(row, col));
                     
-                    // Eventi per il trascinamento
                     cell.addEventListener('mousedown', (e) => {
                         isMouseDown = true;
                         selectCell(row, col);
                         showNumberWheel(e, row, col);
                         e.preventDefault(); // Previene la selezione del testo
                     });
+                    
+                    // Eventi per il touch (touchscreen)
+                    cell.addEventListener('touchstart', (e) => {
+                        isTouchActive = true;
+                        selectCell(row, col);
+                        showNumberWheel(e, row, col);
+                        e.preventDefault(); // Previene lo zoom e lo scroll
+                    }, { passive: false });
                     
                     box.appendChild(cell);
                 }
@@ -606,6 +617,11 @@
             // Aggiungi eventi per il mouse al documento
             document.addEventListener('mouseup', () => {
                 isMouseDown = false;
+            });
+            
+            // Aggiungi eventi per il touch al documento
+            document.addEventListener('touchend', () => {
+                isTouchActive = false;
             });
             
             updateCompletedCount();
@@ -651,14 +667,32 @@
             const wheel = document.createElement('div');
             wheel.className = 'number-wheel';
             wheel.id = 'number-wheel';
-            wheel.style.left = event.pageX + 'px';
-            wheel.style.top = event.pageY + 'px';
+            
+            // Determiniamo la posizione in base al tipo di evento (mouse o touch)
+            let posX, posY;
+            if (event.type.startsWith('touch')) {
+                posX = event.touches[0].pageX;
+                posY = event.touches[0].pageY;
+            } else {
+                posX = event.pageX;
+                posY = event.pageY;
+            }
+            
+            wheel.style.left = posX + 'px';
+            wheel.style.top = posY + 'px';
             
             // Creiamo il centro della ruota (per cancellare)
             const wheelCenter = document.createElement('div');
             wheelCenter.className = 'wheel-center';
             wheelCenter.textContent = 'X';
             wheelCenter.addEventListener('mouseup', () => {
+                if (selectedCell && !isGiven[selectedCell.row][selectedCell.col]) {
+                    updateCell(selectedCell.row, selectedCell.col, 0);
+                }
+                removeNumberWheel();
+            });
+            wheelCenter.addEventListener('touchend', (e) => {
+                e.preventDefault();
                 if (selectedCell && !isGiven[selectedCell.row][selectedCell.col]) {
                     updateCell(selectedCell.row, selectedCell.col, 0);
                 }
@@ -683,7 +717,7 @@
                 
                 wheelNumber.style.transform = `translate(${x}px, ${y}px)`;
                 
-                // Quando il mouse passa sopra un numero, lo evidenziamo
+                // Quando il mouse passa sopra un numero, lo evidenziamo (per mouse)
                 wheelNumber.addEventListener('mouseover', () => {
                     document.querySelectorAll('.wheel-number').forEach(el => {
                         el.classList.remove('selected');
@@ -691,7 +725,7 @@
                     wheelNumber.classList.add('selected');
                 });
                 
-                // Quando rilasciamo il mouse, inseriamo il numero
+                // Quando rilasciamo il mouse, inseriamo il numero (per mouse)
                 wheelNumber.addEventListener('mouseup', () => {
                     if (selectedCell && !isGiven[selectedCell.row][selectedCell.col]) {
                         if (isNotesMode) {
@@ -703,14 +737,49 @@
                     removeNumberWheel();
                 });
                 
+                // Evento touch (per touchscreen)
+                wheelNumber.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    // Simuliamo l'evento hover sui dispositivi touch
+                    const touch = e.touches[0];
+                    const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+                    const touchedNumber = elements.find(el => el.classList.contains('wheel-number'));
+                    
+                    if (touchedNumber) {
+                        document.querySelectorAll('.wheel-number').forEach(el => {
+                            el.classList.remove('selected');
+                        });
+                        touchedNumber.classList.add('selected');
+                    }
+                });
+                
+                wheelNumber.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    // Verifichiamo dove è terminato il touch
+                    const touch = e.changedTouches[0];
+                    const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+                    const touchedNumber = elements.find(el => el.classList.contains('wheel-number'));
+                    
+                    if (touchedNumber && selectedCell && !isGiven[selectedCell.row][selectedCell.col]) {
+                        const num = parseInt(touchedNumber.dataset.number);
+                        if (isNotesMode) {
+                            toggleNote(selectedCell.row, selectedCell.col, num);
+                        } else {
+                            updateCell(selectedCell.row, selectedCell.col, num);
+                        }
+                    }
+                    removeNumberWheel();
+                });
+                
                 wheel.appendChild(wheelNumber);
             }
             
             // Aggiungiamo la ruota al body
             document.body.appendChild(wheel);
             
-            // Aggiungiamo un event listener per rimuovere la ruota se clicchiamo altrove
+            // Aggiungiamo event listeners per rimuovere la ruota
             document.addEventListener('mouseup', handleDocumentMouseUp);
+            document.addEventListener('touchend', handleDocumentTouchEnd);
         }
         
         function removeNumberWheel() {
@@ -719,12 +788,26 @@
                 wheel.remove();
             }
             document.removeEventListener('mouseup', handleDocumentMouseUp);
+            document.removeEventListener('touchend', handleDocumentTouchEnd);
         }
         
         function handleDocumentMouseUp(e) {
             const wheel = document.getElementById('number-wheel');
             if (wheel && !wheel.contains(e.target)) {
                 removeNumberWheel();
+            }
+        }
+        
+        function handleDocumentTouchEnd(e) {
+            const wheel = document.getElementById('number-wheel');
+            if (wheel) {
+                const touch = e.changedTouches[0];
+                const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+                const touchedWheel = elements.find(el => el === wheel || wheel.contains(el));
+                
+                if (!touchedWheel) {
+                    removeNumberWheel();
+                }
             }
         }
         
@@ -950,6 +1033,23 @@
         
         // Inizializzazione
         window.addEventListener('load', () => {
+            // Disabilita il doppio tap per zoom su dispositivi mobili
+            document.addEventListener('touchmove', function(event) {
+                if (event.scale !== 1) {
+                    event.preventDefault();
+                }
+            }, { passive: false });
+            
+            // Previeni il pinch-to-zoom su iOS
+            let lastTouchEnd = 0;
+            document.addEventListener('touchend', function(event) {
+                const now = (new Date()).getTime();
+                if (now - lastTouchEnd <= 300) {
+                    event.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, { passive: false });
+            
             generateSudoku('easy');
             renderBoard();
             startTimer();
