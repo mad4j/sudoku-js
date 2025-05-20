@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sudoku JS</title>
+    <title>Sudoku Master</title>
     <link rel="manifest" href="#" id="manifest-placeholder">
     <meta name="theme-color" content="#4a5568">
     <style>
@@ -111,10 +111,58 @@
             cursor: pointer;
             user-select: none;
             transition: background-color 0.2s;
+            position: relative;
         }
         
         .cell:hover {
             background-color: #edf2f7;
+        }
+        
+        .number-wheel {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+            transform: translate(-50%, -50%);
+            user-select: none;
+        }
+        
+        .wheel-number {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+            background-color: white;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.1s, background-color 0.1s;
+        }
+        
+        .wheel-number:hover, .wheel-number.selected {
+            background-color: var(--highlight-color);
+            color: white;
+            transform: scale(1.2);
+        }
+        
+        .wheel-center {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 50%;
+            background-color: var(--light-color);
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
         
         .cell.given {
@@ -249,8 +297,8 @@
 </head>
 <body>
     <header>
-        <h1>Sudoku JS</h1>
-        <p>Sudoku Everywhere</p>
+        <h1>Sudoku Master</h1>
+        <p>Gioca al Sudoku ovunque</p>
     </header>
     
     <div class="container">
@@ -300,14 +348,14 @@
     </div>
     
     <footer>
-        <p>Sudoku JS PWA © 2025</p>
+        <p>Sudoku Master PWA © 2025</p>
     </footer>
     
     <script>
         // Manifest per PWA
         const manifestData = {
-            "name": "Sudoku JS",
-            "short_name": "SudokuJs",
+            "name": "Sudoku Master",
+            "short_name": "Sudoku",
             "start_url": ".",
             "display": "standalone",
             "background_color": "#f7fafc",
@@ -348,6 +396,7 @@
         let timerInterval = null;
         let startTime = null;
         let isNotesMode = false;
+        let isMouseDown = false;
         
         // Funzioni di utilità
         function getBoxIndex(row, col) {
@@ -537,12 +586,27 @@
                         }
                     }
                     
+                    // Eventi per il click
                     cell.addEventListener('click', () => selectCell(row, col));
+                    
+                    // Eventi per il trascinamento
+                    cell.addEventListener('mousedown', (e) => {
+                        isMouseDown = true;
+                        selectCell(row, col);
+                        showNumberWheel(e, row, col);
+                        e.preventDefault(); // Previene la selezione del testo
+                    });
+                    
                     box.appendChild(cell);
                 }
                 
                 boardElement.appendChild(box);
             }
+            
+            // Aggiungi eventi per il mouse al documento
+            document.addEventListener('mouseup', () => {
+                isMouseDown = false;
+            });
             
             updateCompletedCount();
         }
@@ -573,6 +637,94 @@
                 if (num !== 0) {
                     highlightSameNumber(num);
                 }
+            }
+        }
+        
+        function showNumberWheel(event, row, col) {
+            // Se la cella è predefinita, non mostriamo la ruota
+            if (isGiven[row][col]) return;
+            
+            // Rimuoviamo prima eventuali ruote esistenti
+            removeNumberWheel();
+            
+            // Creiamo l'elemento della ruota
+            const wheel = document.createElement('div');
+            wheel.className = 'number-wheel';
+            wheel.id = 'number-wheel';
+            wheel.style.left = event.pageX + 'px';
+            wheel.style.top = event.pageY + 'px';
+            
+            // Creiamo il centro della ruota (per cancellare)
+            const wheelCenter = document.createElement('div');
+            wheelCenter.className = 'wheel-center';
+            wheelCenter.textContent = 'X';
+            wheelCenter.addEventListener('mouseup', () => {
+                if (selectedCell && !isGiven[selectedCell.row][selectedCell.col]) {
+                    updateCell(selectedCell.row, selectedCell.col, 0);
+                }
+                removeNumberWheel();
+            });
+            wheel.appendChild(wheelCenter);
+            
+            // Aggiungiamo i numeri alla ruota
+            for (let i = 1; i <= 9; i++) {
+                const angle = (i - 1) * (360 / 9);
+                const distance = 70; // Distanza dal centro
+                
+                const wheelNumber = document.createElement('div');
+                wheelNumber.className = 'wheel-number';
+                wheelNumber.textContent = i;
+                wheelNumber.dataset.number = i;
+                
+                // Posizione in base all'angolo
+                const radian = angle * Math.PI / 180;
+                const x = Math.cos(radian) * distance;
+                const y = Math.sin(radian) * distance;
+                
+                wheelNumber.style.transform = `translate(${x}px, ${y}px)`;
+                
+                // Quando il mouse passa sopra un numero, lo evidenziamo
+                wheelNumber.addEventListener('mouseover', () => {
+                    document.querySelectorAll('.wheel-number').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    wheelNumber.classList.add('selected');
+                });
+                
+                // Quando rilasciamo il mouse, inseriamo il numero
+                wheelNumber.addEventListener('mouseup', () => {
+                    if (selectedCell && !isGiven[selectedCell.row][selectedCell.col]) {
+                        if (isNotesMode) {
+                            toggleNote(selectedCell.row, selectedCell.col, i);
+                        } else {
+                            updateCell(selectedCell.row, selectedCell.col, i);
+                        }
+                    }
+                    removeNumberWheel();
+                });
+                
+                wheel.appendChild(wheelNumber);
+            }
+            
+            // Aggiungiamo la ruota al body
+            document.body.appendChild(wheel);
+            
+            // Aggiungiamo un event listener per rimuovere la ruota se clicchiamo altrove
+            document.addEventListener('mouseup', handleDocumentMouseUp);
+        }
+        
+        function removeNumberWheel() {
+            const wheel = document.getElementById('number-wheel');
+            if (wheel) {
+                wheel.remove();
+            }
+            document.removeEventListener('mouseup', handleDocumentMouseUp);
+        }
+        
+        function handleDocumentMouseUp(e) {
+            const wheel = document.getElementById('number-wheel');
+            if (wheel && !wheel.contains(e.target)) {
+                removeNumberWheel();
             }
         }
         
