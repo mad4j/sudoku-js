@@ -195,8 +195,7 @@
             margin-bottom: 1rem;
         }
         
-        .number-button.notes,
-        .number-button.erase {
+        .number-button.notes {
             width: 120px;
         }
         
@@ -285,8 +284,7 @@
                 gap: 0.5rem;
             }
             
-            .number-button.notes,
-            .number-button.erase {
+            .number-button.notes {
                 width: 100%;
                 max-width: 200px;
             }
@@ -317,7 +315,6 @@
         
         <div class="number-pad">
             <button class="number-button notes" id="notes-btn">Note</button>
-            <button class="number-button erase" id="erase">Cancella</button>
         </div>
         
         <div class="statistics">
@@ -988,15 +985,6 @@
                 notesBtn.style.backgroundColor = '#4299e1';
             } else {
                 notesBtn.style.backgroundColor = '';
-            }
-        });
-        
-        document.getElementById('erase').addEventListener('click', () => {
-            if (selectedCell) {
-                const {row, col} = selectedCell;
-                if (!isGiven[row][col]) {
-                    updateCell(row, col, 0);
-                }
             }
         });
         
